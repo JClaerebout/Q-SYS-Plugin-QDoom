@@ -1,0 +1,331 @@
+-- Original miniature Doom-style raycaster. No id Software / CCDoom assets.
+-- Uses the same SVG Legend transport as EzSVG, emitting SVG directly.
+PluginInfo = {
+  Name = "Fun~QDoom",
+  Version = "0.1.1",
+  BuildVersion = "0.1.1",
+  Id = "a53e94fb-a6ed-4ac3-94d6-5b08e0aad170",
+  Author = "Jens Claerebout",
+  Description = "Tiny SVG shooter for shits and giggles"
+}
+
+function GetColor() return {150,25,25} end
+function GetPrettyName() return "QDoom 0.1.1" end
+function GetProperties() return {} end
+
+-- Controls and layout ---------------------------------------------------------
+local buttons = {
+  "Forward", "Backward", "StrafeLeft", "StrafeRight", "TurnLeft",
+  "TurnRight", "Fire", "Reset", "Run", "StepMode"
+}
+
+function GetControls()
+  local controls = {
+    {Name="Screen", ControlType="Button", ButtonType="Toggle", Count=1, UserPin=true, PinStyle="Output"},
+    {Name="Info", ControlType="Text", Count=1, UserPin=true, PinStyle="Output"}
+  }
+  for _, name in ipairs(buttons) do
+    controls[#controls + 1] = {
+      Name=name, ControlType="Button",
+      ButtonType=(name == "Run" or name == "StepMode") and "Toggle" or "Momentary",
+      Count=1, UserPin=true, PinStyle="Input"
+    }
+  end
+  return controls
+end
+
+function GetControlLayout()
+  local layout = {
+    Screen={Style="Button", Position={10,10}, Size={640,360}, Color={0,0,0}, Legend="QDoom"},
+    Info={Style="Text", Position={10,375}, Size={640,30}}
+  }
+  for i, name in ipairs(buttons) do
+    layout[name] = {
+      Style="Button",
+      ButtonStyle=(name == "Run" or name == "StepMode") and "Toggle" or "Momentary",
+      Legend=name,
+      Position={10+((i-1)%5)*130, 415+math.floor((i-1)/5)*45},
+      Size={120,38}, Color={85,35,35}
+    }
+  end
+  return layout, {}
+end
+
+if Controls then
+  local json = require("rapidjson")
+  local W, H, N = 320, 180, 80
+  local map = {
+    "111111111111", "100000000001", "101110011101", "100010000001",
+    "100010110001", "100000010001", "101100010101", "100000000001",
+    "100111000001", "100000000001", "111111111111"
+  }
+ local p,enemies,kills,flash,cooldown,frames,last,damage
+ -- Movement and ray casting --------------------------------------------------
+ local function solid(x,y)
+  local row = map[math.floor(y)+1]
+  return not row or row:sub(math.floor(x)+1,math.floor(x)+1)~="0"
+ end
+ local function walk(o,dx,dy)
+  local r=.18
+  local x=o.x+dx
+  local y=o.y+dy
+  if not solid(x-r,o.y-r) and not solid(x+r,o.y+r)
+    and not solid(x-r,o.y+r) and not solid(x+r,o.y-r) then
+    o.x=x
+  end
+  if not solid(o.x-r,y-r) and not solid(o.x+r,y+r)
+    and not solid(o.x-r,y+r) and not solid(o.x+r,y-r) then
+    o.y=y
+  end
+ end
+ -- Grid DDA: visit each crossed map cell once instead of 0.045-unit samples.
+ local function ray(a,maxdist)
+  local dx,dy=math.cos(a),math.sin(a)
+  local mx,my=math.floor(p.x),math.floor(p.y)
+  local ddx=math.abs(dx)>1e-9 and math.abs(1/dx) or 1e30
+  local ddy=math.abs(dy)>1e-9 and math.abs(1/dy) or 1e30
+  local sx,sy=dx<0 and -1 or 1,dy<0 and -1 or 1
+  local tx=(dx<0 and p.x-mx or mx+1-p.x)*ddx
+  local ty=(dy<0 and p.y-my or my+1-p.y)*ddy
+  for i=1,64 do
+   local d
+   if tx<ty then
+    d=tx
+    tx=tx+ddx
+    mx=mx+sx
+   else
+    d=ty
+    ty=ty+ddy
+    my=my+sy
+   end
+   if d>maxdist then break end
+   local row=map[my+1]
+   if not row or row:sub(mx+1,mx+1)~="0" then
+    return d,p.x+dx*d,p.y+dy*d
+   end
+  end
+  return maxdist,p.x+dx*maxdist,p.y+dy*maxdist
+ end
+ local function angle(a)
+  return (a+math.pi)%(2*math.pi)-math.pi
+ end
+
+ -- Game state and actions ----------------------------------------------------
+ local function reset()
+  p={x=2.5,y=1.5,a=0,hp=100}
+  enemies={
+   {x=7.5,y=1.5,hp=2}, {x=9.5,y=5.5,hp=2},
+   {x=3.5,y=7.5,hp=2}, {x=8.5,y=9.5,hp=2}
+  }
+  kills=0
+  flash=0
+  cooldown=0
+  frames=0
+  damage=0
+  last=Timer.Now()
+ end
+ local function action(n,dt)
+  if p.hp<=0 or kills==#enemies then return end
+  local c,s=math.cos(p.a),math.sin(p.a)
+  local v=dt*1.8
+  if n=="Forward" then
+   walk(p,c*v,s*v)
+  elseif n=="Backward" then
+   walk(p,-c*v,-s*v)
+  elseif n=="StrafeLeft" then
+   walk(p,s*v,-c*v)
+  elseif n=="StrafeRight" then
+   walk(p,-s*v,c*v)
+  elseif n=="TurnLeft" then
+   p.a=p.a-dt*1.7
+  elseif n=="TurnRight" then
+   p.a=p.a+dt*1.7
+  end
+ end
+ local function fire()
+  if p.hp<=0 or cooldown>0 or kills==#enemies then return end
+  cooldown=.35
+  flash=.16
+  local target,best=nil,20
+  for _,e in ipairs(enemies) do
+   if e.hp>0 then
+    local dx,dy=e.x-p.x,e.y-p.y
+    local d=math.sqrt(dx*dx+dy*dy)
+    local a=math.atan(dy,dx)
+    if math.abs(angle(a-p.a))<math.atan(.30/d)
+      and ray(a,d+.1)>d-.1 and d<best then
+     target=e
+     best=d
+    end
+   end
+  end
+  if target then
+   target.hp=target.hp-1
+   if target.hp<=0 then kills=kills+1 end
+  end
+ end
+
+ -- SVG rendering -------------------------------------------------------------
+ local function render()
+  local t=Timer.Now()
+  local svg={'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">'}
+  local function rect(x,y,w,h,col)
+   svg[#svg+1]=string.format('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"/>',x,y,w,h,col)
+  end
+  local function txt(x,y,s,col,size)
+   svg[#svg+1]=string.format('<text x="%d" y="%d" fill="%s" font-family="monospace" font-size="%d">%s</text>',x,y,col,size or 10,s)
+  end
+  rect(0,0,W,H,"#292b32")
+  rect(0,90,W,90,"#444037")
+  local z={}
+  for i=1,N do
+   local camera=2*((i-.5)/N)-1
+   local offset=math.atan(camera*.66)
+   local d,x,y=ray(p.a+offset,18)
+   d=math.max(.08,d*math.cos(offset))
+   z[i]=d
+   local height=math.min(180,125/d)
+   local shade=math.floor(math.max(35,175-d*10))
+   local edge=math.min(x%1,1-x%1)<.06
+   local col=string.format('#%02x%02x%02x',shade,math.floor(shade*(edge and .65 or .85)),math.floor(shade*.6))
+   rect((i-1)*4,(H-height)/2,4.1,height,col)
+  end
+  local order={}
+  for _,e in ipairs(enemies) do
+   if e.hp>0 then
+    e.dist=math.sqrt((e.x-p.x)^2+(e.y-p.y)^2)
+    order[#order+1]=e
+   end
+  end
+  table.sort(order,function(a,b) return a.dist>b.dist end)
+  for _,e in ipairs(order) do
+   local a=angle(math.atan(e.y-p.y,e.x-p.x)-p.a)
+   local d=e.dist*math.cos(a)
+   if d>.15 and math.abs(a)<1.1 then
+    local sx=W/2+math.tan(a)/.66*W/2
+    local h=math.min(160,100/d)
+    local width=h*.55
+    local top=H/2-h/2
+    for i=1,N do
+     local x=(i-.5)*4
+     local u=(x-(sx-width/2))/width
+     if u>=0 and u<=1 and d<z[i] then
+      rect((i-1)*4,top+h*.25,4.1,h*.65,e.hp==1 and "#b32e22" or "#7f2924")
+      if u>.15 and u<.85 then
+       rect((i-1)*4,top,4.1,h*.33,"#b94730")
+      end
+      if (u>.22 and u<.38) or (u>.62 and u<.78) then
+       rect((i-1)*4,top+h*.13,4.1,math.max(1,h*.05),"#ffe978")
+      end
+     end
+    end
+   end
+  end
+  rect(145,140,30,40,"#777b80")
+  rect(152,131,16,36,"#32363c")
+  rect(158,127,4,24,"#b0b3b5")
+  if flash>0 then
+   rect(147,112,26,15,"#ffb52e")
+   rect(155,103,10,32,"#fff19e")
+  end
+  rect(156,89,9,1,"#ffffff")
+  rect(160,85,1,9,"#ffffff")
+  -- Mini-map also makes navigating a sluggish UCI practical.
+  for y,row in ipairs(map) do
+   for x=1,#row do
+    if row:sub(x,x)~="0" then
+     rect(4+(x-1)*3,4+(y-1)*3,3,3,"#68696c")
+    end
+   end
+  end
+  rect(4+p.x*3-1,4+p.y*3-1,2,2,"#00ff8a")
+  for _,e in ipairs(enemies) do
+   if e.hp>0 then rect(4+e.x*3-1,4+e.y*3-1,2,2,"#ff3333") end
+  end
+  rect(0,166,320,14,"#151515")
+  txt(5,177,"HEALTH "..math.ceil(p.hp).."    KILLS "..kills.."/"..#enemies,"#ededce")
+  if p.hp<=0 or kills==#enemies then
+   rect(55,65,210,40,"#191919")
+   txt(70,90,p.hp<=0 and "YOU DIED - RESET" or "YOU WIN - RESET","#ffcc88",16)
+  end
+  if damage>0 then rect(0,0,320,3,"#ff2222") end
+  svg[#svg+1]='</svg>'
+  local data=table.concat(svg)
+  Controls.Screen.Legend=json.encode({DrawChrome=false,IconData=Crypto.Base64Encode(data)})
+  frames=frames+1
+  Controls.Info.String=string.format(
+   "Frame %d | Lua SVG %.1f ms | %.1f KB | %s",
+   frames,(Timer.Now()-t)*1000,#data/1024,
+   Controls.StepMode.Boolean and "STEP: tap to move; enemies wait" or "LIVE: hold to move"
+  )
+ end
+
+ -- Timer and control events --------------------------------------------------
+ local function update(dt,ai)
+  cooldown=math.max(0,cooldown-dt)
+  flash=math.max(0,flash-dt)
+  damage=math.max(0,damage-dt)
+  if ai and p.hp>0 and kills<#enemies then
+   for _,e in ipairs(enemies) do
+    if e.hp>0 then
+     local dx,dy=p.x-e.x,p.y-e.y
+     local d=math.sqrt(dx*dx+dy*dy)
+     if d<.65 then
+      p.hp=math.max(0,p.hp-12*dt)
+      damage=.2
+     elseif d<7 then
+      walk(e,dx/d*dt*.35,dy/d*dt*.35)
+     end
+    end
+   end
+  end
+ end
+ QDoomTimer=Timer.New()
+ QDoomTimer.EventHandler=function()
+  if not Controls.Run.Boolean then return end
+  local now=Timer.Now()
+  local dt=math.min(.25,math.max(0,now-last))
+  last=now
+  local ok,err=pcall(function()
+   if not Controls.StepMode.Boolean then
+    for _,n in ipairs(buttons) do
+     if Controls[n].Boolean then action(n,dt) end
+    end
+    if Controls.Fire.Boolean then fire() end
+   end
+   update(dt,not Controls.StepMode.Boolean)
+   render()
+  end)
+  if not ok then
+   QDoomTimer:Stop()
+   Controls.Run.Boolean=false
+   Controls.Info.String="Stopped: "..tostring(err)
+   print(err)
+  end
+ end
+ for _,n in ipairs(buttons) do
+  local name=n
+  Controls[name].EventHandler=function(c)
+   if name=="Run" then
+    last=Timer.Now()
+    if c.Boolean then QDoomTimer:Start(.2) else QDoomTimer:Stop() end
+   elseif name=="Reset" and c.Boolean then
+    reset()
+    render()
+   elseif c.Boolean and Controls.Run.Boolean then
+    if name=="Fire" then
+     fire()
+     render()
+    elseif name~="StepMode" then
+     action(name,Controls.StepMode.Boolean and .22 or .08)
+     update(.2,false)
+     render()
+    end
+   end
+  end
+ end
+ Controls.Run.Boolean=false
+ Controls.StepMode.Boolean=true
+ reset()
+ render()
+end
