@@ -1,47 +1,29 @@
-# QDoom
+# QDoom 0.3.0
 
-QDoom 0.1.1 is a small Doom-style SVG shooter for Q-SYS Designer. It draws a 320 × 180 scene, enemies, crosshair, and mini-map directly in SVG. The plugin includes one map and needs no game assets, downloads, or external services.
+QDoom is a small, playable Doom-style corridor shooter for Q-SYS. The installable [QDoom.qplug](QDoom.qplug) embeds its map, four wall textures, animated monster and shotgun art, and SVG renderer. No separate assets, audio files, or network service are needed at runtime.
 
-## Install
+## Install and play
 
-1. Double-click [QDoom.qplug](QDoom.qplug) on a Windows machine with Q-SYS Designer, or copy it to `Documents\QSC\Q-Sys Designer\Plugins`.
-2. Restart Designer if needed. Find **Fun → QDoom** in the plugin inventory and add it to a design.
-3. Start emulation with **F6**, open the component, and press **Run**.
+1. On a Windows machine with Q-SYS Designer, open `QDoom.qplug` or copy it to `Documents\QSC\Q-Sys Designer\Plugins`, then restart Designer.
+2. Add **Fun → QDoom** to a design and start emulation. Open the component and press **Run**.
+3. Keep **StepMode** on for touchscreen use: tap movement or turn controls, aim, and press **Fire** twice per monster. Turn StepMode off to hold controls for live movement and enemy AI. **Reset** restores health and enemies.
 
-When updating an existing installation, remove the old component and add a fresh QDoom component. Existing components can retain embedded plugin code from the previous version.
+Copy `Screen`, `Info`, and the input pins to a UCI. Keep `Screen` at 16:9. The same controls are exposed for external wiring. `Run` and `StepMode` are toggles; the other buttons are momentary. The mini-map marks the player green and monsters red. If replacing an older component, remove and re-add it; existing components can retain embedded plugin code.
 
-## Play
+## Rendering and assets
 
-QDoom starts in **StepMode**. Tap the movement or turn buttons to move in fixed steps. Enemies wait in this mode, which makes play practical when UI updates are slow. Aim with the crosshair and press **Fire** twice to defeat an enemy; walls block shots.
+The original grid DDA raycaster casts 64 rays into a 320 × 180 SVG. An offline converter samples four Freedoom wall textures into compact 32 × 32 indexed maps. Lua selects wall texture columns and draws 6–14 colored bands per column, depending on distance. Freedoom monster PNG frames are embedded inside the SVG and clipped against the wall depth buffer. The shotgun uses idle and firing frames. A single `Screen` button receives SVG as Base64 `IconData` in its Legend.
 
-Turn off **StepMode** for live play. Hold movement buttons to move while enemies approach and damage you. **Run** pauses or resumes the timer; **Reset** starts a new game. On the mini-map, green marks the player and red marks enemies.
+A 20 Hz timer handles input and gameplay, then assembles each requested image over nine callbacks: setup, four groups of 16 wall columns, sprites/HUD, SVG concatenation, Base64 encoding, and Legend assignment. A complete image appears at most about every 0.45 seconds. Changes made during assembly trigger another image. The game remains a raycaster rather than a port of the original Doom engine, CCDoom, Pine3D, or QWolf3D.
 
-| Control | Action |
-| --- | --- |
-| `Forward`, `Backward` | Move along the viewing direction |
-| `StrafeLeft`, `StrafeRight` | Move sideways |
-| `TurnLeft`, `TurnRight` | Rotate the view |
-| `Fire` | Shoot at an enemy under the crosshair |
-| `Reset` | Restore health and enemies |
-| `Run` | Start or pause updates |
-| `StepMode` | Switch between tap-to-move and live play |
+All runtime artwork is embedded in the `.qplug`. The source images came from **Freedoom 0.13.0**: wall textures `STARTAN2`, `STARG1`, `TEKWALL1`, `REDWALL1`; monster frames `TROOA1`, `TROOB1`, `TROOE1`; and shotgun frames `SHTGA0`, `SHTGB0`. The conversion script is [tools/build_freedoom_assets.py](tools/build_freedoom_assets.py). To rebuild its asset block, supply the official Freedoom 0.13.0 `freedoom1.wad` and Pillow. The WAD is not needed to install or play QDoom.
 
-## Use in a UCI
+## Local validation and remaining Q-SYS checks
 
-Copy `Screen`, `Info`, and the input controls to your UCI. Keep `Screen` at a **16:9** aspect ratio. Use momentary buttons for movement and firing, and toggle buttons for `Run` and `StepMode`. There is no keyboard capture or sound.
+`python3 test_qdoom.py` uses the temporary `lupa` Lua runtime installed at `/private/tmp/qdoom-test-deps`. It checks plugin loading, controls, firing, collision stress, reset, 500 live ticks, pause, sprite clipping, and repeated rendering. The measured maximum was about 14,900 Lua VM instructions in one timer callback; the final preview SVG was about 65 KB. Native Base64 encoding and Legend transfer are not represented by the VM count. These measurements do not establish compliance with the Q-SYS execution budget.
 
-## Implementation and testing
+Designer/Core was unavailable here. Validate the `.qplug` in Designer emulation and on the target Core: SVG display, PNG and clipping support, step/live controls, UCI and external pin behavior, pause/reset, and long play without `Max execution limits exceeded`. Record the Designer version and Debug Output if a problem occurs.
 
-QDoom is an original raycaster. It is not a port of Doom, CCDoom, or Pine3D, and includes no assets or source from those projects. The plugin renders 80 wall columns and original SVG enemies, then sends the SVG to `Screen.Legend` as Base64 encoded `IconData`. It uses Q-SYS `Timer.Now()`, `Timer.New()`, `rapidjson`, and `Crypto.Base64Encode`; EzSVG itself is not required. `Info` reports Lua frame generation time and SVG size, not measured UCI frame rate. The live timer runs at 5 Hz.
+## Attribution and rights
 
-The included [test.lua](test.lua) is a mocked Q-SYS harness covering control layout, initial render, firing, movement and collision, reset, live ticks, and pause. It can be run with a compatible Lua interpreter from this directory. A prior local run used `texlua`; actual Designer, Core, and TSC behavior still needs validation.
-
-Version 0.1.1 replaced tiny-step wall sampling with bounded grid DDA traversal. A local mocked callback benchmark measured about 195,900 → 23,800 instructions at its maximum across the same gameplay test, excluding native encoding cost. Actual Q-SYS execution budget still requires Designer validation.
-
-If Designer reports an error, capture the Debug Output and Designer version. If `Screen` is blank while `Info` increments, capture the `Screen` display and its UCI style settings.
-
-Q-SYS references: [SVG display API](https://help.qsys.com/q-sys_9.7/Content/Control_Scripting/Using_Lua_in_Q-Sys/EzSVG.htm) · [Basic Plugin Framework](https://help.qsys.com/DeveloperHelp/Content/Code_Examples/Basic_Plugin_Framework.htm)
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+QDoom's Lua gameplay and rendering code is original and covered by [LICENSE](LICENSE) (MIT). Embedded art is derived from the [Freedoom project](https://freedoom.github.io/about.html) and retains its separate [BSD-style license](FREEDOOM-COPYING.txt) and [credits](FREEDOOM-CREDITS.txt). The full Freedoom license notice is also embedded in `QDoom.qplug` so the standalone plugin carries it. No original Doom or QWolf3D assets or source are included. See [PROJECT_NOTES.md](PROJECT_NOTES.md) for the inspection, decisions, and tests.
