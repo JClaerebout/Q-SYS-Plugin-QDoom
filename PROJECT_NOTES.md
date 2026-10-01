@@ -2,6 +2,8 @@
 
 ## 0.3.0: Freedoom artwork upgrade
 
+- Pistol update: replaced the hand-drawn SVG handgun with Freedoom 0.13.0 `PISGA0`, firing/recoil frames `PISGB0` through `PISGE0`, and muzzle flash `PISFA0`. The builder preserves WAD offsets for alignment. Artwork is rendered at 60% scale, centered with the idle hands at the HUD edge. Animation advances per completed render so all recoil poses remain visible; another shot restarts the firing pose. The local harness passed all five weapon poses, flash, reset, collision, pause, and 500 live ticks (maximum approximately 14,700 Lua VM instructions per callback). Q-SYS Designer/Core verification remains outstanding.
+
 - User requested the closest Doom-style result permitted by available rights. Verified [Freedoom 0.13.0](https://freedoom.github.io/download.html) includes `COPYING.txt` granting redistribution and modification with its copyright, terms, disclaimer, and non-endorsement condition. Downloaded the official release to `/private/tmp` for conversion. The ZIP and standalone qplug carry the required notice; ZIP also carries original `CREDITS.txt`.
 - `tools/build_freedoom_assets.py` reads `freedoom1.wad`, composites wall patches, downsamples four wall textures to 32 × 32 indexed samples, and embeds three monster and two shotgun frames as PNG data. Selected wall lumps: `STARTAN2`, `STARG1`, `TEKWALL1`, `REDWALL1`; sprites: `TROOA1`, `TROOB1`, `TROOE1`; weapon: `SHTGA0`, `SHTGB0`. The WAD is not distributed. No original Doom or QWolf3D material is included.
 - Runtime wall rendering remains in four groups of 16 rays. Each ray draws 6, 10, or 14 sampled texture bands. Monster PNG images are SVG `<image>` elements behind depth-derived `<clipPath>` masks. Shotgun frame changes while firing. QWolf3D uses PNG-in-SVG for title art; this is an independent integration using Freedoom art.
@@ -33,3 +35,10 @@ The Xella37 repositories are ComputerCraft projects. CCDoom uses Pine3D and Comp
 - Initial local run failed the pause assertion because 500 live ticks could end in death; the harness now resets before asserting pause. No plugin runtime error was observed.
 - `python3 test_qdoom.py` passed control loading, firing/kills, movement/collision stress, reset, 500 live ticks, pause, a close sprite, and repeated render cycles. Max callback sampled around 7,800 Lua VM instructions; P95 around 5,200. Final preview SVG was 20,586 bytes. The local test substitutes Base64 with a capture function, so native encoding and Legend transfer are unmeasured.
 - Designer/Core was unavailable. Required next test: install in Designer, run the same actions over a sustained session, verify one-button SVG rendering and UCI/external pin behavior, and inspect Debug Output for execution-limit errors.
+
+## Additional Freedoom artwork: two monster types
+
+- Expanded embedded walls to eight: added COMPTALL, STONE2, BROWNPIP, METAL1. Wall families now vary by map region instead of alternating every cell.
+- Added TROO and SARG families, two enemies each, preserving two-shot health. Each uses four walking poses, a transient pain pose, and its original Freedoom corpse artwork. Corpses retain wall clipping and blood pools.
+- Regenerated from official Freedoom 0.13.0 freedoom1.wad. Local assets and test dependencies are ignored. Existing pistol animation and license notice retained.
+- Expanded harness passed both families' pain/death checks and existing gameplay checks; maximum approximately 14,900 Lua VM instructions per callback, P95 13,800. Designer/Core validation remains outstanding.

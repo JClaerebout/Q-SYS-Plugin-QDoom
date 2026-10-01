@@ -1,6 +1,6 @@
 # QDoom 0.3.0
 
-QDoom is a small, playable Doom-style corridor shooter for Q-SYS. The installable [QDoom.qplug](QDoom.qplug) embeds its map, four wall textures, animated monster art and a compact handgun, and SVG renderer. No separate assets, audio files, or network service are needed at runtime.
+QDoom is a small, playable Doom-style corridor shooter for Q-SYS. The installable [QDoom.qplug](QDoom.qplug) embeds its map, eight wall textures, two animated monster types, a compact handgun, and SVG renderer. No separate assets, audio files, or network service are needed at runtime.
 
 ## Install and play
 
@@ -12,15 +12,15 @@ Copy `Screen`, `Info`, and the input pins to a UCI. Keep `Screen` at 16:9. The s
 
 ## Rendering and assets
 
-The original grid DDA raycaster casts 64 rays into a 320 × 180 SVG. An offline converter samples four Freedoom wall textures into compact 32 × 32 indexed maps. Lua selects wall texture columns and draws 6–14 colored bands per column, depending on distance. Freedoom monster PNG frames are embedded inside the SVG and clipped against the wall depth buffer. The handgun is drawn in SVG with recoil and a flame muzzle flash. Hits add red blood; dead monsters remain as sideways bodies with blood pools until Reset. Shot flashes and hit bursts are retained until a frame renders them. A single `Screen` button receives SVG as Base64 `IconData` in its Legend.
+The original grid DDA raycaster casts 64 rays into a 320 × 180 SVG. An offline converter samples eight Freedoom wall textures into compact 32 × 32 indexed maps. Lua selects wall texture columns and draws 6–14 colored bands per column, depending on distance. Freedoom monster PNG frames are embedded inside the SVG and clipped against the wall depth buffer. The handgun uses embedded Freedoom pistol frames with recoil and a muzzle flash. Hits add red blood; dead monsters remain as Freedoom corpse sprites with blood pools until Reset. Shot flashes and hit bursts are retained until a frame renders them. A single `Screen` button receives SVG as Base64 `IconData` in its Legend.
 
 A 20 Hz timer handles input and gameplay, then assembles each requested image over nine callbacks: setup, four groups of 16 wall columns, sprites/HUD, SVG concatenation, Base64 encoding, and Legend assignment. A complete image appears at most about every 0.45 seconds. Changes made during assembly trigger another image. The game remains a raycaster rather than a port of the original Doom engine, CCDoom, Pine3D, or QWolf3D.
 
-All runtime artwork is embedded in the `.qplug`. The source images came from **Freedoom 0.13.0**: wall textures `STARTAN2`, `STARG1`, `TEKWALL1`, `REDWALL1`; monster frames `TROOA1`, `TROOB1`, `TROOE1`; and shotgun frames `SHTGA0`, `SHTGB0`. The conversion script is [tools/build_freedoom_assets.py](tools/build_freedoom_assets.py). To rebuild its asset block, supply the official Freedoom 0.13.0 `freedoom1.wad` and Pillow. The WAD is not needed to install or play QDoom.
+All runtime artwork is embedded in the `.qplug`. The source images came from **Freedoom 0.13.0**: wall textures `STARTAN2`, `STARG1`, `TEKWALL1`, `REDWALL1`, `COMPTALL`, `STONE2`, `BROWNPIP`, `METAL1`; monster families `TROO` and `SARG`, each with four walking poses, a pain pose, and a corpse; and pistol frames `PISGA0` through `PISGE0` plus `PISFA0`. Both monster types take two shots; each appears twice on the map. The conversion script is [tools/build_freedoom_assets.py](tools/build_freedoom_assets.py). To rebuild its asset block, supply the official Freedoom 0.13.0 `freedoom1.wad` and Pillow. The WAD is not needed to install or play QDoom.
 
 ## Local validation and remaining Q-SYS checks
 
-`python3 test_qdoom.py` uses the temporary `lupa` Lua runtime installed at `/private/tmp/qdoom-test-deps`. It checks plugin loading, controls, firing, collision stress, reset, 500 live ticks, pause, sprite clipping, and repeated rendering. Before the handgun and corpse update, the measured maximum was about 14,900 Lua VM instructions in one timer callback; the final preview SVG was about 65 KB. Native Base64 encoding and Legend transfer are not represented by the VM count. These measurements do not establish compliance with the Q-SYS execution budget.
+`python test_qdoom.py` uses `lupa` (installed normally or into `.test-deps`). It checks plugin loading, controls, firing, collision stress, reset, 500 live ticks, pause, sprite clipping, and repeated rendering. With both monster types and eight textures, the measured maximum was about 14,900 Lua VM instructions in one timer callback; the preview SVG was about 68 KB. The harness also verifies both families render their pain and corpse poses. Native Base64 encoding and Legend transfer are not represented by the VM count. These measurements do not establish compliance with the Q-SYS execution budget.
 
 Designer/Core was unavailable here. Validate the `.qplug` in Designer emulation and on the target Core: SVG display, PNG and clipping support, step/live controls, UCI and external pin behavior, pause/reset, and long play without `Max execution limits exceeded`. Record the Designer version and Debug Output if a problem occurs.
 

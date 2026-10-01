@@ -16,9 +16,11 @@ from PIL import Image
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 START = "-- BEGIN GENERATED FREEDOOM ASSETS\n"
 END = "-- END GENERATED FREEDOOM ASSETS\n"
-WALL_NAMES = ("STARTAN2", "STARG1", "TEKWALL1", "REDWALL1")
-SPRITE_NAMES = ("TROOA1", "TROOB1", "TROOE1")
-GUN_NAMES = ("SHTGA0", "SHTGB0")
+WALL_NAMES = ("STARTAN2", "STARG1", "TEKWALL1", "REDWALL1", "COMPTALL", "STONE2", "BROWNPIP", "METAL1")
+# Each family has four walk poses, a pain pose, and an actual corpse.
+SPRITE_NAMES = ("TROOA1", "TROOB1", "TROOC1", "TROOD1", "TROOH1", "TROOM0",
+                "SARGA1", "SARGB1", "SARGC1", "SARGD1", "SARGH1", "SARGN0")
+GUN_NAMES = ("PISGA0", "PISGB0", "PISGC0", "PISGD0", "PISGE0", "PISFA0")
 CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUV"
 
 
@@ -112,19 +114,20 @@ def generate(wad_path: pathlib.Path):
         lines.append("local " + table_name + "={")
         for name in names:
             image = decode_patch(lumps[name], palette)
-            lines.append('  {name="%s",w=%d,h=%d,png="%s"},' % (name, image.width, image.height, png_base64(image)))
+            left, top = struct.unpack_from("<hh", lumps[name], 4)
+            lines.append('  {name="%s",w=%d,h=%d,left=%d,top=%d,png="%s"},' % (name, image.width, image.height, left, top, png_base64(image)))
         lines.append("}")
     lines.append(END.rstrip())
     block = "\n".join(lines) + "\n"
     plugin_path = ROOT / "QDoom.qplug"
-    source = plugin_path.read_text()
+    source = plugin_path.read_text(encoding="utf-8")
     if START in source:
         before, rest = source.split(START, 1)
         _, after = rest.split(END, 1)
         source = before + block + after
     else:
         source = source.replace("if Controls then\n", block + "\nif Controls then\n", 1)
-    plugin_path.write_text(source)
+    plugin_path.write_text(source, encoding="utf-8")
     print("Embedded", len(WALL_NAMES), "wall textures,", len(SPRITE_NAMES), "monster frames,", len(GUN_NAMES), "weapon frames;", len(block), "source bytes")
 
 

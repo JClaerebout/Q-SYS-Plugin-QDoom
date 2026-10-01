@@ -4,6 +4,7 @@ import sys
 import base64
 import xml.etree.ElementTree as ET
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".test-deps"))
 sys.path.insert(0, "/private/tmp/qdoom-test-deps")
 from lupa import LuaRuntime
 
@@ -56,10 +57,12 @@ for _ in range(2):
     press("Fire", False)
     # Capture each assembled frame: effects must survive the staged renderer.
     shot_frames = []
-    for tick in range(20):
+    for tick in range(55):
         ticks(1)
         shot_frames.append(lua.eval("lastSVG"))
     assert any('data-effect="muzzle-flash"' in frame for frame in shot_frames)
+    for name in ('PISGB0', 'PISGC0', 'PISGD0', 'PISGE0', 'PISGA0'):
+        assert any(f'data-frame="{name}"' in frame for frame in shot_frames), name
     assert any('data-effect="blood-hit"' in frame for frame in shot_frames)
 assert "KILLS 1/4" in lua.eval("lastSVG")
 assert 'data-effect="corpse"' in lua.eval("lastSVG")
@@ -108,5 +111,34 @@ for image in images:
     assert base64.b64decode(payload).startswith(b"\x89PNG\r\n\x1a\n")
 with open("preview.svg", "w") as f:
     f.write(lua.eval("lastSVG"))
+# Exercise both families through the same visible enemy slot. Access private
+# state only through the harness, without adding runtime debug controls.
+lua.execute("""
+function upvalue(fn, wanted)
+  for i=1,100 do
+    local name,value=debug.getupvalue(fn,i)
+    if not name then break end
+    if name==wanted then return value end
+  end
+  error('Missing upvalue '..wanted)
+end
+testEnemies=upvalue(upvalue(Controls.Reset.EventHandler,'reset'),'enemies')
+""")
+for kind, family, pain, corpse in ((1, 'TROO', 'TROOH1', 'TROOM0'),
+                                   (2, 'SARG', 'SARGH1', 'SARGN0')):
+    press("Reset", True)
+    press("Reset", False)
+    lua.execute(f"testEnemies=upvalue(upvalue(Controls.Reset.EventHandler,'reset'),'enemies'); testEnemies[1].kind={kind}")
+    ticks(20)
+    assert f'data-monster="{family}"' in lua.eval("lastSVG")
+    for expected in (pain, corpse):
+        press("Fire", True)
+        press("Fire", False)
+        frames = []
+        for _ in range(35):
+            ticks(1)
+            frames.append(lua.eval("lastSVG"))
+        assert any(f'data-pose="{expected}"' in frame for frame in frames), expected
+    assert "KILLS 1/4" in lua.eval("lastSVG")
 print(f"PASS: controls, firing, collision stress, reset, 500 live ticks, pause, sprite and repeated frames")
 print(f"Max callback ~{max(counts):,} Lua VM instructions; P95 ~{sorted(counts)[int(len(counts)*.95)]:,}; SVG {len(lua.eval('lastSVG')):,} bytes")

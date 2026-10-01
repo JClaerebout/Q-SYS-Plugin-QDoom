@@ -1,2 +1,5 @@
 # macOS metadata sidecars
 ._*
+.asset-cache/
+.test-deps/
+__pycache__/
