@@ -10,6 +10,8 @@ QDoom is a small, playable Doom-style corridor shooter for Q-SYS. The installabl
 
 Copy `Screen`, `Info`, and the input pins to a UCI. Keep `Screen` at 16:9. The same controls are exposed for external wiring. `Run` and `StepMode` are toggles; the other buttons are momentary. The mini-map marks the player green and monsters red. If replacing an older component, remove and re-add it; existing components can retain embedded plugin code.
 
+The game has two levels. Clear the four monsters in level one, then press **Fire** again to enter a new map with six monsters and full health. Clear level two to win. The HUD shows the current level; **Reset** restarts the game at level one.
+
 ## Rendering and assets
 
 The original grid DDA raycaster casts 64 rays into a 320 × 180 SVG. An offline converter samples eight Freedoom wall textures into compact 32 × 32 indexed maps. Lua selects wall texture columns and draws 6–14 colored bands per column, depending on distance. Freedoom monster PNG frames are embedded inside the SVG and clipped against the wall depth buffer. The handgun uses embedded Freedoom pistol frames with recoil and a muzzle flash. Hits add red blood; dead monsters remain as Freedoom corpse sprites with blood pools until Reset. Shot flashes and hit bursts are retained until a frame renders them. A single `Screen` button receives SVG as Base64 `IconData` in its Legend.

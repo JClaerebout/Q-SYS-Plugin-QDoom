@@ -140,5 +140,53 @@ for kind, family, pain, corpse in ((1, 'TROO', 'TROOH1', 'TROOM0'),
             frames.append(lua.eval("lastSVG"))
         assert any(f'data-pose="{expected}"' in frame for frame in frames), expected
     assert "KILLS 1/4" in lua.eval("lastSVG")
-print(f"PASS: controls, firing, collision stress, reset, 500 live ticks, pause, sprite and repeated frames")
+# Complete each level through real shots, positioning the player beside each
+# monster with harness-only access to private state.
+press("Reset", True)
+press("Reset", False)
+for level, total in ((1, 4), (2, 6)):
+    lua.execute("""
+    testReset=upvalue(Controls.Reset.EventHandler,'reset')
+    testEnemies=upvalue(testReset,'enemies')
+    testPlayer=upvalue(testReset,'p')
+    testMap=upvalue(testReset,'map')
+    """)
+    assert len(lua.globals().testEnemies) == total
+    # All spawns must be open and reachable from the player spawn.
+    rows = list(lua.globals().testMap.values())
+    start = (int(lua.globals().testPlayer.x), int(lua.globals().testPlayer.y))
+    reachable, pending = {start}, [start]
+    while pending:
+        x, y = pending.pop()
+        for nx, ny in ((x-1,y), (x+1,y), (x,y-1), (x,y+1)):
+            if 0 <= ny < len(rows) and 0 <= nx < len(rows[ny]) and rows[ny][nx] == '0' and (nx, ny) not in reachable:
+                reachable.add((nx, ny))
+                pending.append((nx, ny))
+    for enemy in lua.globals().testEnemies.values():
+        assert (int(enemy.x), int(enemy.y)) in reachable
+    for index in range(1, total+1):
+        lua.execute(f"local e=testEnemies[{index}]; testPlayer.x=e.x-.25; testPlayer.y=e.y; testPlayer.a=0")
+        for _ in range(2):
+            press("Fire", True)
+            press("Fire", False)
+            ticks(40)
+    assert f"LEVEL {level}" in lua.eval("lastSVG")
+    assert f"KILLS {total}/{total}" in lua.eval("lastSVG")
+    assert ("CLEAR - FIRE FOR LV2" if level == 1 else "YOU WIN - RESET") in lua.eval("lastSVG")
+    press("Fire", True)
+    press("Fire", False)
+    ticks(20)
+    if level == 1:
+        assert "LEVEL 2" in lua.eval("lastSVG")
+        assert "HEALTH 100" in lua.eval("lastSVG")
+        assert "KILLS 0/6" in lua.eval("lastSVG")
+        assert 'data-effect="corpse"' not in lua.eval("lastSVG")
+    else:
+        assert "YOU WIN - RESET" in lua.eval("lastSVG")
+press("Reset", True)
+press("Reset", False)
+ticks(20)
+assert "LEVEL 1" in lua.eval("lastSVG")
+assert "KILLS 0/4" in lua.eval("lastSVG")
+print(f"PASS: controls, firing, collision stress, reset, 500 live ticks, pause, sprite, repeated frames and two-level progression")
 print(f"Max callback ~{max(counts):,} Lua VM instructions; P95 ~{sorted(counts)[int(len(counts)*.95)]:,}; SVG {len(lua.eval('lastSVG')):,} bytes")

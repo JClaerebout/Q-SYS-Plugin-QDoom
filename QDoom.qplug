@@ -32,7 +32,7 @@
 -- CREDITS.
 
 PluginInfo = {
-  Name="Fun~QDoom", Version="0.3.0", BuildVersion="0.3.0",
+  Name="Games~QDoom", Version="0.3.0", BuildVersion="0.3.0",
   Id="a53e94fb-a6ed-4ac3-94d6-5b08e0aad170",
   Author="Jens Claerebout", Description="A small SVG corridor shooter"
 }
@@ -376,11 +376,18 @@ local GUN_ART={
 
 if Controls then
   local W,H,N=320,180,64
-  local map={
+  local firstMap={
     "111111111111","100000000001","101110011101","100010000001",
     "100010110001","100000010001","101100010101","100000000001",
     "100111000001","100000000001","111111111111"
   }
+  local secondMap={
+    "111111111111","100000000001","101111011101","100001000001",
+    "111001010101","100000010001","101110010101","100000000001",
+    "101011110101","100000000001","111111111111"
+  }
+  local level=1
+  local map=firstMap
   local p,enemies,kills,flash,cooldown,damage,frames,last,hasRun
   local dirty=true
   local shotPending=false
@@ -421,9 +428,19 @@ if Controls then
     return limit,p.x+dx*limit,p.y+dy*limit,0,0
   end
   local function angle(a) return (a+math.pi)%(2*math.pi)-math.pi end
-  local function reset()
+  local function reset(nextLevel)
+    level=nextLevel or 1
+    map=level==1 and firstMap or secondMap
     p={x=2.5,y=1.5,a=0,hp=100}
     enemies={{x=7.5,y=1.5,hp=2,kind=1},{x=9.5,y=5.5,hp=2,kind=2},{x=3.5,y=7.5,hp=2,kind=1},{x=8.5,y=9.5,hp=2,kind=2}}
+    if level==2 then
+      p.x=1.5
+      enemies={{x=8.5,y=1.5,hp=2,kind=2},{x=3.5,y=3.5,hp=2,kind=1},
+        {x=9.5,y=3.5,hp=2,kind=2},{x=2.5,y=5.5,hp=2,kind=1},
+        {x=8.5,y=7.5,hp=2,kind=2},{x=5.5,y=9.5,hp=2,kind=1}}
+    end
+    -- Discard the previous level's partially assembled image.
+    stage=0;parts=nil;z=nil;scene=nil;svgBytes=nil
     kills=0;flash=0;cooldown=0;damage=0;frames=0;last=Timer.Now();dirty=true;shotPending=false;weaponFrame=0
   end
   local function move(n,dt)
@@ -463,7 +480,7 @@ if Controls then
         if e.hp>0 then
           local dx,dy=p.x-e.x,p.y-e.y
           local d=sqrt(dx*dx+dy*dy)
-          if d<.65 then p.hp=max(0,p.hp-12*dt);damage=.2;dirty=true
+          if d<.65 then p.hp=max(0,p.hp-6*dt);damage=.2;dirty=true
           elseif d<7 then walk(e,dx/d*dt*.35,dy/d*dt*.35);dirty=true end
         end
       end
@@ -595,10 +612,10 @@ if Controls then
     rect(5,170,58,7,"#3a2928")
     rect(5,170,58*max(0,p.hp)/100,7,p.hp>30 and "#a34635" or "#d1271e")
     txt(68,177,"HEALTH "..math.ceil(p.hp).."  KILLS "..kills.."/"..#enemies,"#e4d3a8")
-    txt(251,177,"QD00M","#9b6546",9)
+    txt(251,177,"LEVEL "..level,"#9b6546",9)
     if p.hp<=0 or kills==#enemies or not Controls.Run.Boolean then
       rect(55,65,210,40,"#191919")
-      local prompt=p.hp<=0 and "YOU DIED - RESET" or (kills==#enemies and "YOU WIN - RESET" or (hasRun and "PAUSED - PRESS RUN" or "PRESS RUN TO PLAY"))
+      local prompt=p.hp<=0 and "YOU DIED - RESET" or (kills==#enemies and (level==1 and "CLEAR - FIRE FOR LV2" or "YOU WIN - RESET") or (hasRun and "PAUSED - PRESS RUN" or "PRESS RUN TO PLAY"))
       txt(70,90,prompt,"#ffcc88",16)
     end
     if damage>0 then rect(0,0,320,3,"#ff2222") end
@@ -655,7 +672,9 @@ if Controls then
         reset()
       elseif name=="StepMode" then dirty=true
       elseif c.Boolean and Controls.Run.Boolean then
-        if name=="Fire" then fire()
+        if name=="Fire" then
+          if p.hp>0 and kills==#enemies and level==1 then reset(2)
+          else fire() end
         elseif Controls.StepMode.Boolean then move(name,.22);update(.2,false) end
       end
     end

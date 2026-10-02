@@ -3,3 +3,5 @@
 .asset-cache/
 .test-deps/
 __pycache__/
+
+*.zip
