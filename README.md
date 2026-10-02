@@ -4,7 +4,7 @@ QDoom is a small, playable Doom-style corridor shooter for Q-SYS. The installabl
 
 ## Install and play
 
-1. On a Windows machine with Q-SYS Designer, open `QDoom.qplug` or copy it to `Documents\QSC\Q-Sys Designer\Plugins`, then restart Designer.
+1. Double-click `QDoom.qplug`. QSysPluginHelper will prompt you to install the plugin.
 2. Add **Fun → QDoom** to a design and start emulation. Open the component and press **Run**.
 3. Keep **StepMode** on for touchscreen use: tap movement or turn controls, aim, and press **Fire** twice per monster. Turn StepMode off to hold controls for live movement and enemy AI. **Reset** restores health and enemies.
 
