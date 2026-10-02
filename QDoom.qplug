@@ -31,13 +31,16 @@
 -- For a list of contributors to the Freedoom project, see the file
 -- CREDITS.
 
+BuildVersion = "0.3.0.0"
+
 PluginInfo = {
-  Name="Games~QDoom", Version="0.3.0", BuildVersion="0.3.0",
+  Name = "Games~QDoom v" .. BuildVersion,
+  Version = BuildVersion,
   Id="a53e94fb-a6ed-4ac3-94d6-5b08e0aad170",
   Author="Jens Claerebout", Description="A small SVG corridor shooter"
 }
 function GetColor() return {125,32,29} end
-function GetPrettyName() return "QDoom 0.3.0" end
+function GetPrettyName() return "QDoom " .. PluginInfo.Version end
 function GetProperties() return {} end
 
 local buttons={"Forward","Backward","StrafeLeft","StrafeRight","TurnLeft","TurnRight","Fire","Reset","Run","StepMode"}
